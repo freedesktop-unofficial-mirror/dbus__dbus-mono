@@ -1,0 +1,500 @@
+dnl -*- mode: m4 -*-
+AC_PREREQ(2.52)
+
+AC_INIT(mono/dbus-sharp.dll.config.in)
+
+AC_CANONICAL_TARGET
+
+AM_INIT_AUTOMAKE(dbus-sharp, 0.63)
+
+AM_CONFIG_HEADER(config.h)
+
+# Honor aclocal flags
+ACLOCAL="$ACLOCAL $ACLOCAL_FLAGS"
+
+ ## must come before we use the $USE_MAINTAINER_MODE variable later
+AM_MAINTAINER_MODE
+
+AC_PROG_CC
+AC_PROG_CXX
+AC_ISC_POSIX
+AC_HEADER_STDC
+
+#### gcc warning flags
+
+if test "x$GCC" = "xyes"; then
+  changequote(,)dnl
+  case " $CFLAGS " in
+  *[\ \	]-Wall[\ \	]*) ;;
+  *) CFLAGS="$CFLAGS -Wall" ;;
+  esac
+
+  case " $CFLAGS " in
+  *[\ \	]-Wchar-subscripts[\ \	]*) ;;
+  *) CFLAGS="$CFLAGS -Wchar-subscripts" ;;
+  esac
+
+  case " $CFLAGS " in
+  *[\ \	]-Wmissing-declarations[\ \	]*) ;;
+  *) CFLAGS="$CFLAGS -Wmissing-declarations" ;;
+  esac
+
+  case " $CFLAGS " in
+  *[\ \	]-Wmissing-prototypes[\ \	]*) ;;
+  *) CFLAGS="$CFLAGS -Wmissing-prototypes" ;;
+  esac
+
+  case " $CFLAGS " in
+  *[\ \	]-Wnested-externs[\ \	]*) ;;
+  *) CFLAGS="$CFLAGS -Wnested-externs" ;;
+  esac
+
+  case " $CFLAGS " in
+  *[\ \	]-Wpointer-arith[\ \	]*) ;;
+  *) CFLAGS="$CFLAGS -Wpointer-arith" ;;
+  esac
+
+  case " $CFLAGS " in
+  *[\ \	]-Wcast-align[\ \	]*) ;;
+  *) CFLAGS="$CFLAGS -Wcast-align" ;;
+  esac
+
+  case " $CFLAGS " in
+  *[\ \	]-Wfloat-equal[\ \	]*) ;;
+  *) CFLAGS="$CFLAGS -Wfloat-equal" ;;
+  esac
+
+  case " $CFLAGS " in
+  *[\ \	]-Wsign-compare[\ \	]*) ;;
+  *) CFLAGS="$CFLAGS -Wsign-compare" ;;
+  esac
+srcdir=`dirname $0`
+test -z "$srcdir" && srcdir=.
+  if test "x$enable_ansi" = "xyes"; then
+    case " $CFLAGS " in
+    *[\ \	]-ansi[\ \	]*) ;;
+    *) CFLAGS="$CFLAGS -ansi" ;;
+    esac
+
+    case " $CFLAGS " in
+    *[\ \	]-D_POSIX_C_SOURCE*) ;;
+    *) CFLAGS="$CFLAGS -D_POSIX_C_SOURCE=199309L" ;;
+    esac
+
+    case " $CFLAGS " in
+    *[\ \	]-D_BSD_SOURCE[\ \	]*) ;;
+    *) CFLAGS="$CFLAGS -D_BSD_SOURCE" ;;
+    esac
+
+    case " $CFLAGS " in
+    *[\ \	]-pedantic[\ \	]*) ;;
+    *) CFLAGS="$CFLAGS -pedantic" ;;
+    esac
+  fi
+  if test x$enable_gcov = xyes; then
+    case " $CFLAGS " in
+    *[\ \	]-fprofile-arcs[\ \	]*) ;;
+    *) CFLAGS="$CFLAGS -fprofile-arcs" ;;
+    esac
+    case " $CFLAGS " in
+    *[\ \	]-ftest-coverage[\ \	]*) ;;
+    *) CFLAGS="$CFLAGS -ftest-coverage" ;;
+    esac
+
+    ## remove optimization
+    CFLAGS=`echo "$CFLAGS" | sed -e 's/-O[0-9]*//g'`
+  fi
+  changequote([,])dnl
+else
+  if test x$enable_gcov = xyes; then
+    AC_MSG_ERROR([--enable-gcov can only be used with gcc])
+  fi
+fi
+
+AM_PROG_LIBTOOL
+
+changequote(,)dnl
+# let ourselves use our own unstable API
+CPPFLAGS="-DDBUS_API_SUBJECT_TO_CHANGE=1 $CPPFLAGS"
+# compress spaces in flags
+CFLAGS=`echo "$CFLAGS" | sed -e 's/ +/ /g'`
+CXXFLAGS=`echo "$CXXFLAGS" | sed -e 's/ +/ /g'`
+CPPFLAGS=`echo "$CPPFLAGS" | sed -e 's/ +/ /g'`
+changequote([,])dnl
+
+#### Look for mono
+MONO_REQUIRED_VERSION=0.95
+AC_SUBST(MONO_REQUIRED_VERSION)
+PKG_CHECK_MODULES(MONO_DEPENDENCY, mono >= $MONO_REQUIRED_VERSION, have_mono=true, have_mono=false)
+
+if test "x$enable_mono" = "xyes"; then
+	if test "x$have_mono" = "xfalse"; then
+		AC_MSG_ERROR([Mono was not found])
+	fi
+fi
+
+if test "x$have_mono" = "xtrue"; then
+	if test `uname -s` = "Darwin"; then
+		AC_PATH_PROG(RUNTIME, mint, no)
+		AC_PATH_PROG(CSC, mcs, no)
+		LIB_PREFIX=
+		LIB_SUFFIX=.dylib
+	else
+		AC_PATH_PROG(RUNTIME, mono, no)
+		AC_PATH_PROG(CSC, mcs, no)
+		LIB_PREFIX=.so
+		LIB_SUFFIX=
+	fi
+else
+	AC_PATH_PROG(CSC, csc.exe, no)
+	RUNTIME=
+	LIB_PREFIX=
+	LIB_SUFFIX=.dylib
+fi
+
+if test x$enable_mono = xyes; then
+    if test x$have_mcs = xno ; then
+	AC_MSG_ERROR([Building Mono bindings explicitly required, but mcs compiler not found])
+    fi
+
+    ### Test for GACUTIL
+    AC_PATH_PROG(GACUTIL, gacutil, no)
+    if test "x$GACUTIL" = "xno" ; then
+        AC_MSG_ERROR([No gacutil tool found])
+    fi
+
+    AC_SUBST(GACUTIL)
+fi
+
+if test x$enable_mono = xauto ; then
+    if test x$CSC = xno ; then
+        enable_mono=no
+    else
+    	### Test for GACUTIL
+    	AC_PATH_PROG(GACUTIL, gacutil, no)
+    	if test "x$GACUTIL" = "xno" ; then
+	   enable_mono=no
+  	else
+	   enable_mono=yes
+    	fi
+    fi
+fi
+
+AC_SUBST(RUNTIME)
+AC_SUBST(CSC)
+AC_SUBST(GACUTIL)
+AC_SUBST(LIB_PREFIX)
+AC_SUBST(LIB_SUFFIX)
+
+AM_CONDITIONAL(DBUS_USE_CSC, test x$enable_mono = xyes)
+#### Look for monodoc
+MONODOC_REQUIRED_VERSION=0.16
+AC_SUBST(MONODOC_REQUIRED_VERSION)
+PKG_CHECK_MODULES(MONODOC_DEPENDENCY, monodoc >= $MONODOC_REQUIRED_VERSION, have_monodoc=yes, have_monodoc=no)
+
+if test x$enable_mono_docs = xyes; then
+    if test x$have_monodoc = xno ; then
+	AC_MSG_ERROR([Building Mono docs explicitly required, but monodoc not found])
+    else
+        AC_PATH_PROG(MONODOC, monodoc, no)
+        if test x$MONODOC = xno; then
+           AC_MSG_ERROR([Building Mono docs explicitly required, but monodoc not found])	
+	fi
+    fi
+fi
+
+if test x$enable_mono_docs = xauto ; then
+    if test x$have_monodoc = xno ; then
+        enable_mono_docs=no
+	MONODOC=
+    else
+        AC_PATH_PROG(MONODOC, monodoc, no)
+        if test x$MONODOC = xno; then
+           enable_mono_docs=no
+           MONODOC=
+	else
+	   enable_mono_docs=yes
+        fi
+    fi
+fi
+
+AC_SUBST(MONODOC)
+
+AM_CONDITIONAL(ENABLE_MONODOC, test "x$enable_mono_docs" = "xyes")
+#### Integer sizes 
+
+AC_CHECK_SIZEOF(char)
+AC_CHECK_SIZEOF(short)
+AC_CHECK_SIZEOF(long)
+AC_CHECK_SIZEOF(int)
+AC_CHECK_SIZEOF(void *)
+AC_CHECK_SIZEOF(long long)
+AC_CHECK_SIZEOF(__int64)
+
+### See what our 64 bit type is called
+AC_MSG_CHECKING([64-bit integer type])
+
+case 8 in
+$ac_cv_sizeof_int)
+  dbusint64=int
+  dbusint64_constant='(val)'
+  dbusuint64_constant='(val)'
+  ;;
+$ac_cv_sizeof_long)
+  dbusint64=long
+  dbusint64_constant='(val##L)'
+  dbusuint64_constant='(val##UL)'
+  ;;
+$ac_cv_sizeof_long_long)
+  dbusint64='long long'
+  dbusint64_constant='(val##LL)'
+  dbusuint64_constant='(val##ULL)'
+  ;;
+$ac_cv_sizeof___int64)
+  dbusint64=__int64
+  dbusint64_constant='(val##i64)'
+  dbusuint64_constant='(val##ui64)'
+  ;;
+esac
+
+if test -z "$dbusint64" ; then
+        DBUS_INT64_TYPE="no_int64_type_detected"
+        DBUS_HAVE_INT64=0
+        DBUS_INT64_CONSTANT=
+        DBUS_UINT64_CONSTANT=
+        AC_MSG_RESULT([none found])
+else
+        DBUS_INT64_TYPE="$dbusint64"
+        DBUS_HAVE_INT64=1
+        DBUS_INT64_CONSTANT="$dbusint64_constant"
+        DBUS_UINT64_CONSTANT="$dbusuint64_constant"
+        AC_MSG_RESULT($DBUS_INT64_TYPE)
+fi
+
+AC_SUBST(DBUS_INT64_TYPE)
+AC_SUBST(DBUS_INT64_CONSTANT)
+AC_SUBST(DBUS_UINT64_CONSTANT)
+AC_SUBST(DBUS_HAVE_INT64)
+
+### see what 32-bit int is called
+AC_MSG_CHECKING([32-bit integer type])
+
+case 4 in
+$ac_cv_sizeof_short)
+  dbusint32=int
+  ;;
+$ac_cv_sizeof_int)
+  dbusint32=int
+  ;;
+$ac_cv_sizeof_long)
+  dbusint32=long
+  ;;
+esac
+
+if test -z "$dbusint32" ; then
+        DBUS_INT32_TYPE="no_int32_type_detected"
+        AC_MSG_ERROR([No 32-bit integer type found])
+else
+        DBUS_INT32_TYPE="$dbusint32"
+        AC_MSG_RESULT($DBUS_INT32_TYPE)
+fi
+
+AC_SUBST(DBUS_INT32_TYPE)
+
+### see what 16-bit int is called
+AC_MSG_CHECKING([16-bit integer type])
+
+case 2 in
+$ac_cv_sizeof_short)
+  dbusint16=short
+  ;;
+$ac_cv_sizeof_int)
+  dbusint16=int
+  ;;
+esac
+
+if test -z "$dbusint16" ; then
+        DBUS_INT16_TYPE="no_int16_type_detected"
+        AC_MSG_ERROR([No 16-bit integer type found])
+else
+        DBUS_INT16_TYPE="$dbusint16"
+        AC_MSG_RESULT($DBUS_INT16_TYPE)
+fi
+
+AC_SUBST(DBUS_INT16_TYPE)
+
+## byte order
+AC_C_BIGENDIAN
+
+
+dnl **********************************
+dnl *** va_copy checks (from GLib) ***
+dnl **********************************
+dnl we currently check for all three va_copy possibilities, so we get
+dnl all results in config.log for bug reports.
+AC_CACHE_CHECK([for an implementation of va_copy()],dbus_cv_va_copy,[
+	AC_LINK_IFELSE([#include <stdarg.h>
+	void f (int i, ...) {
+	va_list args1, args2;
+	va_start (args1, i);
+	va_copy (args2, args1);
+	if (va_arg (args2, int) != 42 || va_arg (args1, int) != 42)
+	  exit (1);
+	va_end (args1); va_end (args2);
+	}
+	int main() {
+	  f (0, 42);
+	  return 0;
+	}],
+	[dbus_cv_va_copy=yes],
+	[dbus_cv_va_copy=no])
+])
+AC_CACHE_CHECK([for an implementation of __va_copy()],dbus_cv___va_copy,[
+	AC_LINK_IFELSE([#include <stdarg.h>
+	void f (int i, ...) {
+	va_list args1, args2;
+	va_start (args1, i);
+	__va_copy (args2, args1);
+	if (va_arg (args2, int) != 42 || va_arg (args1, int) != 42)
+	  exit (1);
+	va_end (args1); va_end (args2);
+	}
+	int main() {
+	  f (0, 42);
+	  return 0;
+	}],
+	[dbus_cv___va_copy=yes],
+	[dbus_cv___va_copy=no])
+])
+
+if test "x$dbus_cv_va_copy" = "xyes"; then
+  dbus_va_copy_func=va_copy
+else if test "x$dbus_cv___va_copy" = "xyes"; then
+  dbus_va_copy_func=__va_copy
+fi
+fi
+
+if test -n "$dbus_va_copy_func"; then
+  AC_DEFINE_UNQUOTED(DBUS_VA_COPY,$dbus_va_copy_func,[A 'va_copy' style function])
+fi
+
+AC_CACHE_CHECK([whether va_lists can be copied by value],dbus_cv_va_val_copy,[
+	AC_TRY_RUN([#include <stdarg.h>
+	void f (int i, ...) {
+	va_list args1, args2;
+	va_start (args1, i);
+	args2 = args1;
+	if (va_arg (args2, int) != 42 || va_arg (args1, int) != 42)
+	  exit (1);
+	va_end (args1); va_end (args2);
+	}
+	int main() {
+	  f (0, 42);
+	  return 0;
+	}],
+	[dbus_cv_va_val_copy=yes],
+	[dbus_cv_va_val_copy=no],
+	[dbus_cv_va_val_copy=yes])
+])
+
+if test "x$dbus_cv_va_val_copy" = "xno"; then
+  AC_DEFINE(DBUS_VA_COPY_AS_ARRAY,1, ['va_lists' cannot be copies as values])
+fi
+
+
+#### Atomic integers (checks by Sebastian Wilhelmi for GLib)
+AC_MSG_CHECKING([whether to use inline assembler routines for atomic integers])
+have_atomic_inc=no
+if test x"$GCC" = xyes; then
+  if test "x$enable_ansi" = "xyes"; then
+    AC_MSG_RESULT([no])
+  else
+    case $host_cpu in
+      i386)
+        AC_MSG_RESULT([no])
+        ;;
+      i?86)
+        AC_MSG_RESULT([i486])
+        AC_DEFINE_UNQUOTED(DBUS_USE_ATOMIC_INT_486, 1, [Use atomic integer implementation for 486])
+        have_atomic_inc=yes
+        ;;
+      *)
+        AC_MSG_RESULT([no])
+        ;;
+    esac
+  fi
+fi
+if test x$have_atomic_inc = xyes ; then
+  AC_DEFINE_UNQUOTED(DBUS_HAVE_ATOMIC_INT, 1, [Some atomic integer implementation present])
+fi
+
+#### Have to go $localstatedir->$prefix/var->/usr/local/var   
+#### someone please fix this a better way...
+
+#### find the actual value for $prefix that we'll end up with
+##   (I know this is broken and should be done in the Makefile, but
+##    that's a major pain and almost nobody actually seems to care)
+REAL_PREFIX=
+if test "x$prefix" = "xNONE"; then
+  REAL_PREFIX=$ac_default_prefix
+else
+  REAL_PREFIX=$prefix
+fi
+
+## temporarily change prefix and exec_prefix
+old_prefix=$prefix
+prefix=$REAL_PREFIX
+
+if test "x$exec_prefix" = xNONE ; then
+   REAL_EXEC_PREFIX=$REAL_PREFIX
+else
+   REAL_EXEC_PREFIX=$exec_prefix
+fi
+old_exec_prefix=$exec_prefix
+exec_prefix=$REAL_EXEC_PREFIX
+
+## eval everything
+LOCALSTATEDIR_TMP="$localstatedir"
+EXPANDED_LOCALSTATEDIR=`eval echo $LOCALSTATEDIR_TMP`
+AC_SUBST(EXPANDED_LOCALSTATEDIR)
+
+SYSCONFDIR_TMP="$sysconfdir"
+EXPANDED_SYSCONFDIR=`eval echo $SYSCONFDIR_TMP`
+AC_SUBST(EXPANDED_SYSCONFDIR)
+
+BINDIR_TMP="$bindir"
+EXPANDED_BINDIR=`eval echo $BINDIR_TMP`
+AC_SUBST(EXPANDED_BINDIR)
+
+LIBDIR_TMP="$libdir"
+EXPANDED_LIBDIR=`eval echo $LIBDIR_TMP`
+AC_SUBST(EXPANDED_LIBDIR)
+
+DATADIR_TMP="$datadir"
+EXPANDED_DATADIR=`eval echo $DATADIR_TMP`
+AC_SUBST(EXPANDED_DATADIR)
+
+## put prefix and exec_prefix back
+prefix=$old_prefix
+exec_prefix=$old_exec_prefix
+
+#### Tell tests where to find certain stuff in builddir
+ABSOLUTE_TOP_BUILDDIR=`cd ${ac_top_builddir}. && pwd`
+
+AC_DEFUN([TEST_PATH], [
+TEST_$1=${ABSOLUTE_TOP_BUILDDIR}/test/$2
+AC_DEFINE_UNQUOTED(TEST_$1, "$TEST_$1",
+                   [Full path to test file test/$2 in builddir])
+AC_SUBST(TEST_$1)
+])
+
+AC_OUTPUT([
+Makefile
+mono/Makefile
+mono/AssemblyInfo.cs
+mono/dbus-sharp.dll.config
+mono/doc/Makefile
+mono/example/Makefile
+dbus-sharp.pc
+])
+
