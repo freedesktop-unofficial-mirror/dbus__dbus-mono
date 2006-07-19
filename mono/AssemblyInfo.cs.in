@@ -1,6 +1,6 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
  
-[assembly:AssemblyVersion("@VERSION@")]
+[assembly:AssemblyVersion("0.60")]
 [assembly:AssemblyDelaySign(false)]
 [assembly:AssemblyKeyFile("@srcdir@/dbus-sharp.snk")]
